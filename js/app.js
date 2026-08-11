@@ -305,7 +305,7 @@ function loadSettings() {
     const s = localStorage.getItem(SETTINGS_KEY);
     if (s) { const p = JSON.parse(s); if (p.theme) return p; }
   } catch(e) {}
-  return { theme: 'midnight', logoStyle: 'emoji-name', quote: 'ship it — one task at a time 🚀', pin: '2002' };
+  return { theme: 'midnight', logoStyle: 'emoji-name', quote: 'ship it — one task at a time 🚀', pin: '2002', syncEnabled: false, syncUrl: '' };
 }
 
 function saveSettings() {
@@ -362,7 +362,10 @@ function loadState() {
   return JSON.parse(JSON.stringify(DATA));
 }
 
-function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {} }
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  scheduleSync();
+}
 
 function loadSessions() {
   try {
@@ -388,6 +391,203 @@ function toast(msg, type='') {
   t.innerHTML = '<i class="fa-regular fa-circle-'+ (type==='ok'?'check':type==='err'?'xmark':'info') +'"></i> ' + msg;
   c.appendChild(t);
   setTimeout(() => t.remove(), 3000);
+}
+
+// ===== CLOUDFLARE SYNC =====
+const SYNC_META_KEY = 'abbass-sync-meta';
+const SYNC = {
+  url: '',
+  enabled: false,
+  state: 'off', // off | syncing | synced | error
+  lastSync: null,
+  timer: null,
+  keyPromise: null
+};
+
+function syncSettings() {
+  SYNC.url = (settings.syncUrl || '').trim().replace(/\/$/, '');
+  SYNC.enabled = !!settings.syncEnabled && !!SYNC.url;
+}
+
+function loadSyncMeta() {
+  try {
+    const m = JSON.parse(localStorage.getItem(SYNC_META_KEY) || 'null');
+    return m && m.updatedAt ? m : null;
+  } catch(e) { return null; }
+}
+
+// Sync key = SHA-256 of the PIN (the PIN itself never leaves the device)
+async function getSyncKey() {
+  if (!SYNC.keyPromise) {
+    SYNC.keyPromise = (async () => {
+      if (!window.crypto || !crypto.subtle) throw new Error('crypto.subtle unavailable');
+      const pin = getPin();
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('abbass-workspace:' + pin));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    })();
+  }
+  return SYNC.keyPromise;
+}
+
+function setSyncState(s, at) {
+  SYNC.state = s;
+  if (at) SYNC.lastSync = at;
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  if (s === 'off') el.textContent = '☁️ Sync off';
+  else if (s === 'syncing') el.textContent = '☁️ Syncing…';
+  else if (s === 'synced') {
+    el.textContent = '☁️ Synced' + (SYNC.lastSync ? ' · ' + new Date(SYNC.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+  } else el.textContent = '☁️ Sync error';
+}
+
+function scheduleSync() {
+  if (!SYNC.enabled) return;
+  if (SYNC.timer) clearTimeout(SYNC.timer);
+  SYNC.timer = setTimeout(() => { SYNC.timer = null; syncPush(); }, 1200);
+}
+
+async function syncPush() {
+  if (!SYNC.enabled) return;
+  setSyncState('syncing');
+  try {
+    const key = await getSyncKey();
+    const updatedAt = Date.now();
+    localStorage.setItem(SYNC_META_KEY, JSON.stringify({ updatedAt, key: key.slice(0, 8) }));
+    const res = await fetch(SYNC.url + '/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, data: state, updatedAt })
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+    if (j.rejected) { await syncPull(); return; } // server is newer — pull instead
+    setSyncState('synced', updatedAt);
+  } catch (e) {
+    console.warn('sync push failed:', e.message);
+    setSyncState('error');
+  }
+}
+
+async function syncPull() {
+  if (!SYNC.enabled) return;
+  setSyncState('syncing');
+  // Flush any pending local change first so an adopt can't clobber it
+  if (SYNC.timer) {
+    clearTimeout(SYNC.timer);
+    SYNC.timer = null;
+    await syncPush();
+    if (SYNC.state === 'error') return;
+  }
+  try {
+    const key = await getSyncKey();
+    const res = await fetch(SYNC.url + '/api/state?key=' + encodeURIComponent(key));
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+    if (!j.data) { await syncPush(); return; } // nothing on the server yet
+    const meta = loadSyncMeta();
+    // Skip adopt only when the local meta matches THIS PIN's key and isn't older than the server
+    if (meta && meta.key === key.slice(0, 8) && meta.updatedAt >= j.updatedAt) {
+      setSyncState('synced', meta.updatedAt);
+      return; // we're already up to date
+    }
+    // Adopt the server state (it's newer)
+    state = j.data;
+    save();
+    localStorage.setItem(SYNC_META_KEY, JSON.stringify({ updatedAt: j.updatedAt, key: key.slice(0, 8) }));
+    renderSidebar();
+    if (currentView === 'tasks') renderMain();
+    else if (currentView === 'calendar') renderCalendar();
+    else if (currentView === 'focus') renderFocus();
+    setSyncState('synced', j.updatedAt);
+    const locked = !document.getElementById('lockScreen').classList.contains('hidden');
+    if (!locked) toast('☁️ Synced from another device', 'ok');
+    pullAttachments();
+  } catch (e) {
+    console.warn('sync pull failed:', e.message);
+    setSyncState('error');
+  }
+}
+
+async function syncNow() {
+  if (!SYNC.enabled) { toast('☁️ Enable sync in settings first', 'err'); return; }
+  setSyncState('syncing');
+  try {
+    await syncPush();
+    if (SYNC.state !== 'error') {
+      await syncPull();
+      if (SYNC.state !== 'error') toast('☁️ Sync complete', 'ok');
+    }
+  } catch (e) {
+    setSyncState('error');
+    toast('☁️ Sync failed: ' + e.message, 'err');
+  }
+}
+
+// ===== FILE SYNC (R2) =====
+function dataUrlToBlob(dataUrl) {
+  return fetch(dataUrl).then(r => r.blob());
+}
+
+async function pushFileToRemote(fileRecord) {
+  if (!SYNC.enabled) return;
+  try {
+    const key = await getSyncKey();
+    const blob = await dataUrlToBlob(fileRecord.dataUrl);
+    const res = await fetch(SYNC.url + '/api/files?key=' + encodeURIComponent(key) + '&id=' + encodeURIComponent(fileRecord.id), {
+      method: 'PUT',
+      headers: { 'Content-Type': fileRecord.type || 'application/octet-stream' },
+      body: blob
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+  } catch (e) {
+    console.warn('file push failed:', fileRecord.name, e.message);
+  }
+}
+
+async function deleteFileRemote(fileId) {
+  if (!SYNC.enabled) return;
+  try {
+    const key = await getSyncKey();
+    await fetch(SYNC.url + '/api/files?key=' + encodeURIComponent(key) + '&id=' + encodeURIComponent(fileId), { method: 'DELETE' });
+  } catch (e) {
+    console.warn('file delete failed:', fileId, e.message);
+  }
+}
+
+async function pullAttachments() {
+  if (!SYNC.enabled) return;
+  try {
+    const key = await getSyncKey();
+    for (const board of state.boards) {
+      for (const card of board.cards) {
+        const metas = card.files || [];
+        if (!metas.length) continue;
+        const local = await getFilesByCardId(card.id);
+        const localIds = new Set(local.map(f => f.id));
+        for (const meta of metas) {
+          if (localIds.has(meta.id)) continue;
+          try {
+            const res = await fetch(SYNC.url + '/api/files?key=' + encodeURIComponent(key) + '&id=' + encodeURIComponent(meta.id));
+            if (!res.ok) continue;
+            const blob = await res.blob();
+            const reader = new FileReader();
+            const dataUrl = await new Promise((resolve, reject) => {
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            await saveFileToDB({ id: meta.id, cardId: card.id, name: meta.name, size: meta.size, type: meta.type, dataUrl });
+          } catch (e) {
+            console.warn('attachment pull failed:', meta.name, e.message);
+          }
+        }
+      }
+    }
+    if (currentView === 'tasks') renderMain();
+  } catch (e) {
+    console.warn('pullAttachments failed:', e.message);
+  }
 }
 
 // ===== NAVIGATION =====
@@ -423,7 +623,9 @@ function renderSidebarHeader() {
       <span class="sidebar-title-text">Abbass Workspace</span>
     </div>
     <div class="sidebar-sub">${esc(settings.quote)}</div>
+    <div class="sidebar-sync" id="syncStatus" onclick="openSettings()" title="Sync settings — click to manage"></div>
   `;
+  setSyncState(SYNC.state);
 }
 
 // ===== RENDER SIDEBAR BOARDS =====
@@ -519,7 +721,7 @@ function clearSearch() {
 function cardHTML(c, boardId, idx) {
   const tags = c.tags?.length ? c.tags.map(t => `<span class="card-tag ${t}">${TAG_LABELS[t]||t}</span>`).join('') : '';
   const prio = c.prio === 'high' ? '🔴 High' : c.prio === 'medium' ? '🟡 Med' : c.prio === 'low' ? '🟢 Low' : '';
-  const fileCount = c.fileCount || 0;
+  const fileCount = (c.files && c.files.length) ? c.files.length : (c.fileCount || 0);
 
   let dueHTML = '';
   if (c.due) {
@@ -784,24 +986,21 @@ async function saveNewCard() {
   const cardId = uid();
   const pendingFiles = getPendingFiles('inpFilePreview');
   const checklist = collectChecklist('inpClList');
-  board.cards.unshift({ id: cardId, title, desc, notes, prio, tags, done: false, due, fileCount: pendingFiles.length, checklist });
-
-  for (const f of pendingFiles) {
-    const fileRecord = {
-      id: uid(),
-      cardId: cardId,
-      name: f.name,
-      size: f.size,
-      type: f.type,
-      dataUrl: f.dataUrl
-    };
+  const fileRecords = pendingFiles.map(f => ({ id: uid(), cardId, name: f.name, size: f.size, type: f.type, dataUrl: f.dataUrl }));
+  board.cards.unshift({
+    id: cardId, title, desc, notes, prio, tags, done: false, due, checklist,
+    files: fileRecords.map(({ id, name, size, type }) => ({ id, name, size, type })),
+    fileCount: fileRecords.length
+  });  for (const fileRecord of fileRecords) {
     try {
       await saveFileToDB(fileRecord);
     } catch(e) {
       console.error('Failed to save file:', e);
     }
   }
-
+  // Upload attachments before pushing state, so other devices never see metadata for files that aren't on R2 yet
+  await Promise.all(fileRecords.map(r => pushFileToRemote(r)));
+  
   save();
   closeModal();
   renderMain();
@@ -989,6 +1188,16 @@ async function openFileViewer(fileId) {
 
 function removeExistingFile(boardId, cardId, fileId) {
   deleteFileFromDB(fileId);
+  deleteFileRemote(fileId);
+  const board = state.boards.find(b => b.id === boardId);
+  if (board) {
+    const card = board.cards.find(c => c.id === cardId);
+    if (card) {
+      card.files = (card.files || []).filter(f => f.id !== fileId);
+      card.fileCount = card.files.length;
+      save(); // persist + sync the metadata change immediately
+    }
+  }
   const el = document.querySelector(`.file-preview-item[data-file-id="${fileId}"]`);
   if (el) el.remove();
 }
@@ -1009,7 +1218,9 @@ async function saveEdit(boardId, cardId) {
   card.due = document.getElementById('editDue').value || null;
   card.checklist = collectChecklist('editClList');
 
+  // Save new pending files to IndexedDB, then push them to Cloudflare before state
   const pendingFiles = getPendingFiles('editFilePreview');
+  const fileRecords = [];
   for (const f of pendingFiles) {
     const fileRecord = {
       id: uid(),
@@ -1019,16 +1230,19 @@ async function saveEdit(boardId, cardId) {
       type: f.type,
       dataUrl: f.dataUrl
     };
+    fileRecords.push(fileRecord);
     try {
       await saveFileToDB(fileRecord);
     } catch(e) {
       console.error('Failed to save file:', e);
     }
   }
+  await Promise.all(fileRecords.map(r => pushFileToRemote(r)));
 
+  // Rebuild file metadata from IndexedDB (source of truth)
   const existingFiles = await getFilesByCardId(cardId);
-  const newCount = existingFiles.length + pendingFiles.length;
-  card.fileCount = newCount;
+  card.files = existingFiles.map(f => ({ id: f.id, name: f.name, size: f.size, type: f.type }));
+  card.fileCount = card.files.length;
 
   save();
   closeModal();
@@ -1043,9 +1257,11 @@ function delCard(boardId, cardId) {
   const card = board.cards.find(c => c.id === cardId);
   if (!card) return;
   confirm('🗑️', 'Delete this task?', `"${esc(card.title)}" will be removed forever.`, async () => {
+    // Delete associated files from IndexedDB + Cloudflare
     try {
       await deleteFilesByCardId(cardId);
     } catch(e) {}
+    (card.files || []).forEach(f => deleteFileRemote(f.id));
     board.cards = board.cards.filter(c => c.id !== cardId);
     save();
     closeModal();
@@ -1098,12 +1314,36 @@ function openSettings() {
         <label class="form-l"><i class="fa-solid fa-lock"></i> PIN Code <span style="color:var(--text-faint);font-weight:400">(4 digits)</span></label>
         <input class="form-i" id="editPin" value="${esc(getPin())}" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="4-digit PIN">
       </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-cloud-arrow-up"></i> Sync Across Devices</label>
+        <label class="switch">
+          <input type="checkbox" id="editSync" ${settings.syncEnabled ? 'checked' : ''}>
+          <span class="track"></span>
+          <span>Cloudflare sync</span>
+        </label>
+        <div class="form-hint">Store your tasks in the cloud so every device stays in sync. Enter the same PIN on each device to link them.</div>
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-link"></i> Worker URL</label>
+        <input class="form-i" id="editSyncUrl" value="${esc(settings.syncUrl || '')}" placeholder="https://abbass-workspace-sync.&lt;subdomain&gt;.workers.dev">
+      </div>
+      <div class="form-g">
+        <div class="form-hint" style="margin-bottom:6px">${syncStatusText()}</div>
+        <button class="btn btn-ghost btn-sm" onclick="syncNow()"><i class="fa-solid fa-rotate"></i> Sync now</button>
+      </div>
     </div>
     <div class="modal-f">
       <button class="btn btn-ghost" onclick="closeModal()">Close</button>
       <button class="btn btn-accent" onclick="saveSettingsModal()">💾 Save</button>
     </div>
   `);
+}
+
+function syncStatusText() {
+  if (!SYNC.enabled) return '☁️ Sync is off';
+  if (SYNC.state === 'syncing') return '☁️ Syncing…';
+  if (SYNC.state === 'error') return '☁️ Last sync failed — check the Worker URL';
+  return '☁️ Last synced: ' + (SYNC.lastSync ? new Date(SYNC.lastSync).toLocaleString() : 'never');
 }
 
 function selectTheme(id) {
@@ -1125,13 +1365,33 @@ function saveSettingsModal() {
   if (pinInput) {
     const pin = pinInput.value.trim();
     if (/^\d{4}$/.test(pin)) {
-      if (pin !== getPin()) { settings.pin = pin; pinMsg = ' 🔒 PIN updated'; }
+      if (pin !== getPin()) {
+        settings.pin = pin;
+        pinMsg = ' 🔒 PIN updated';
+        if (settings.syncEnabled) pinMsg += ' — devices must use the new PIN to stay linked';
+      }
     } else {
       toast('PIN must be exactly 4 digits — current PIN kept', 'err');
     }
   }
   const q = document.getElementById('editQuote').value.trim();
   if (q) settings.quote = q;
+
+  const syncInput = document.getElementById('editSync');
+  const syncUrlInput = document.getElementById('editSyncUrl');
+  if (syncInput) {
+    settings.syncEnabled = syncInput.checked;
+    settings.syncUrl = (syncUrlInput ? syncUrlInput.value : '').trim();
+    const wasOn = SYNC.enabled;
+    syncSettings();
+    SYNC.keyPromise = null; // PIN may have changed — recompute next time
+    if (SYNC.enabled && !wasOn) {
+      setTimeout(() => { syncPull(); }, 300);
+    } else if (!SYNC.enabled) {
+      setSyncState('off');
+    }
+  }
+
   saveSettings();
   renderSidebarHeader();
   closeModal();
@@ -2171,9 +2431,32 @@ document.addEventListener('keydown', function(e) {
 // ===== INIT =====
 function initApp(showToast = true) {
   applyTheme(settings.theme);
+  syncSettings();
   renderSidebar();
   switchView('tasks');
   if (showToast) toast('🚀 Welcome back, Abbass!', 'ok');
+  if (SYNC.enabled) syncPull();
 }
+
+// Flush pending sync when the tab is hidden or closed
+['visibilitychange', 'pagehide'].forEach(evt => {
+  document.addEventListener(evt, () => {
+    if (document.visibilityState === 'hidden' && SYNC.timer) {
+      clearTimeout(SYNC.timer);
+      SYNC.timer = null;
+      if (SYNC.enabled && SYNC.url && navigator.sendBeacon) {
+        // sendBeacon survives page unload (worker accepts POST for /api/state)
+        getSyncKey().then(key => {
+          const updatedAt = Date.now();
+          localStorage.setItem(SYNC_META_KEY, JSON.stringify({ updatedAt, key: key.slice(0, 8) }));
+          const blob = new Blob([JSON.stringify({ key, data: state, updatedAt })], { type: 'application/json' });
+          navigator.sendBeacon(SYNC.url + '/api/state', blob);
+        });
+      } else {
+        syncPush();
+      }
+    }
+  });
+});
 
 document.addEventListener('DOMContentLoaded', checkAppLock);

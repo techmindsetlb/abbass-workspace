@@ -27,6 +27,7 @@ Designed to match [abbassmokashar.github.io/website](https://abbassmokashar.gith
 - **🔒 PIN Lock** — Keep your workspace private (default PIN: `2002`, changeable anytime in Customize settings)
 - **🎨 Themes** — Midnight (default), Terminal, Deep Ocean, Light Slate
 - **💾 Auto-Save** — Everything persists in localStorage
+- **☁️ Cloud Sync** — Tasks & attachments sync across all your devices via Cloudflare Workers (D1 + R2)
 - **⌨️ Shortcuts** — `Ctrl+K` new task · `Ctrl+Shift+N` new board · `Esc` close modal
 - **📱 Fully Responsive** — Phone, tablet & desktop
 
@@ -34,6 +35,7 @@ Designed to match [abbassmokashar.github.io/website](https://abbassmokashar.gith
 
 1. Open `index.html` in any browser — or better, host it on GitHub Pages / serve it locally (some browsers block IndexedDB file attachments when opened directly via `file://`, so a local server is recommended for full attachment support)
 2. Enter the PIN to unlock (`2002`)
+3. Optional: enable **Cloud sync** in Customize settings to keep tasks in sync across devices
 3. Click a board, then **Add Task**
 4. Drag & drop to reorder, check off to complete
 5. Use the **palette** icon in the sidebar to switch theme / quote
@@ -42,9 +44,42 @@ Designed to match [abbassmokashar.github.io/website](https://abbassmokashar.gith
 ## 💻 Tech Stack
 
 - Pure HTML, CSS & JavaScript — no frameworks
-- localStorage + IndexedDB for data persistence
+- localStorage + IndexedDB for local persistence & cache
+- **Cloudflare Workers + D1** for cloud state sync (optional)
+- **Cloudflare R2** for synced file attachments (optional)
 - Google Fonts: Syne + Space Grotesk
 - Font Awesome Icons
+
+## ☁️ Cloud Sync (Cloudflare Workers)
+
+The app is **local-first**: it always works offline, and syncs to the cloud in the background when enabled. Your PIN is hashed (SHA-256) into a sync key — **enter the same PIN on every device to link them**. Change the PIN and devices need the new PIN to stay linked.
+
+### One-time deployment (you need a Cloudflare account)
+
+```bash
+cd worker
+npx wrangler login
+npx wrangler d1 create abbass-workspace          # copy the returned database_id
+# paste database_id into wrangler.toml
+npx wrangler r2 bucket create abbass-workspace-files
+npx wrangler d1 execute abbass-workspace --file schema.sql
+npx wrangler deploy
+```
+
+Then, in the app: **Customize → Sync Across Devices → on** and paste the Worker URL
+(`https://abbass-workspace-sync.<your-subdomain>.workers.dev`). Repeat on each device with the same PIN.
+
+**Security note:** the sync key is derived from your 4-digit PIN — anyone who knows your PIN could read your synced data. It's a convenient personal setup, not strong security. For stricter protection, put Cloudflare Access in front of the worker or switch to a random token.
+
+### API (worker/index.js)
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/state?key=` | Fetch your workspace JSON |
+| `PUT /api/state` | Push workspace (last-write-wins) |
+| `PUT /api/files?key=&id=` | Upload an attachment (R2) |
+| `GET /api/files?key=&id=` | Download an attachment |
+| `DELETE /api/files?key=&id=` | Delete an attachment |
 
 ## 🎨 Design System
 

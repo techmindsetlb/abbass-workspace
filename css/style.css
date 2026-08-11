@@ -177,6 +177,22 @@ body::before {
   text-overflow: ellipsis;
 }
 
+.sidebar-sync {
+  margin-top: 7px;
+  font-size: 10px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: color 150ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-sync:hover { color: var(--accent-2); }
+
 /* ===== NAVIGATION ===== */
 .sidebar-nav {
   padding: 10px 10px 6px;
@@ -835,6 +851,58 @@ body::before {
 }
 
 .form-l i { color: var(--accent); font-size: 13px; }
+
+/* Toggle switch */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  user-select: none;
+}
+
+.switch input { display: none; }
+
+.switch .track {
+  width: 40px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  position: relative;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+}
+
+.switch .track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: all 150ms var(--ease);
+}
+
+.switch input:checked + .track {
+  background: rgba(37,193,155,0.25);
+  border-color: var(--accent);
+}
+
+.switch input:checked + .track::after {
+  left: 20px;
+  background: var(--accent-2);
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
 
 .form-i {
   width: 100%;
@@ -1683,7 +1751,7 @@ body::before {
   .sidebar-title { justify-content: center; }
   .sidebar-title-text { display: none; }
   .sidebar-title span { font-size: 18px; margin: 0; }
-  .sidebar-sub, .sidebar-label-text, .board-item-text, .board-item-count, .add-board-btn span,
+  .sidebar-sub, .sidebar-sync, .sidebar-label-text, .board-item-text, .board-item-count, .add-board-btn span,
   .sidebar-nav-item span { display: none; }
   .sidebar-label { justify-content: center; padding: 12px 6px 6px; }
   .sidebar-nav-item { justify-content: center; padding: 9px; }

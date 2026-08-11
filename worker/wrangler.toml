@@ -1,0 +1,17 @@
+name = "abbass-workspace-sync"
+main = "index.js"
+compatibility_date = "2024-11-01"
+
+# --- D1 database (workspace JSON state) ---
+# 1) npx wrangler d1 create abbass-workspace
+# 2) paste the returned database_id below
+[[d1_databases]]
+binding = "DB"
+database_name = "abbass-workspace"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# --- R2 bucket (file attachments) ---
+# 1) npx wrangler r2 bucket create abbass-workspace-files
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "abbass-workspace-files"
