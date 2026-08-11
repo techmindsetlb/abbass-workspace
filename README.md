@@ -52,7 +52,7 @@ Designed to match [abbassmokashar.github.io/website](https://abbassmokashar.gith
 
 ## ☁️ Cloud Sync (Cloudflare Workers)
 
-The app is **local-first**: it always works offline, and syncs to the cloud in the background when enabled. Your PIN is hashed (SHA-256) into a sync key — **enter the same PIN on every device to link them**. Change the PIN and devices need the new PIN to stay linked.
+The app is **local-first**: it always works offline, and syncs to the cloud in the background when enabled. Your PIN is hashed (SHA-256) into a sync key — **enter the same PIN on every device to link them**, and sync turns on automatically the first time you unlock on a new device. Change the PIN and devices need the new PIN to stay linked.
 
 ### One-time deployment (you need a Cloudflare account)
 
@@ -70,8 +70,10 @@ npx wrangler deploy
 > and **Workers KV attachment sync** both live. KV was chosen over R2 so no
 > payment method is needed on the Cloudflare account.
 
-Then, in the app: **Customize → Sync Across Devices → on** — the Worker URL
-(`https://abbass-workspace-sync.techmindset-leb.workers.dev`) is already prefilled. Repeat on each device with the same PIN.
+Then just open the app on each device and **enter your PIN** — sync enables
+**automatically** on unlock (the PIN is your sync identity; the Worker URL is
+already prefilled). You only need to touch the toggle in Customize settings if
+you want to turn sync **off** for a device, or point it at a different Worker.
 
 > 💡 **KV consistency note:** Workers KV is eventually consistent — a file you
 > attach on one device can take up to ~60 seconds to appear on another. That's

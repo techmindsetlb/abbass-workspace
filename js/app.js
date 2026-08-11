@@ -305,7 +305,7 @@ function loadSettings() {
     const s = localStorage.getItem(SETTINGS_KEY);
     if (s) { const p = JSON.parse(s); if (p.theme) return p; }
   } catch(e) {}
-  return { theme: 'midnight', logoStyle: 'emoji-name', quote: 'ship it — one task at a time 🚀', pin: '2002', syncEnabled: false, syncUrl: 'https://abbass-workspace-sync.techmindset-leb.workers.dev' };
+  return { theme: 'midnight', logoStyle: 'emoji-name', quote: 'ship it — one task at a time 🚀', pin: '2002', syncEnabled: false, syncConfigured: false, syncUrl: 'https://abbass-workspace-sync.techmindset-leb.workers.dev' };
 }
 
 function saveSettings() {
@@ -407,6 +407,23 @@ const SYNC = {
 function syncSettings() {
   SYNC.url = (settings.syncUrl || '').trim().replace(/\/$/, '');
   SYNC.enabled = !!settings.syncEnabled && !!SYNC.url;
+}
+
+// The PIN is the identity/key — so on a new device, entering the PIN should
+// just work: auto-enable sync on unlock unless the user explicitly turned it
+// off in Customize settings (syncConfigured).
+function autoEnableSync() {
+  if (!settings.syncConfigured && !SYNC.enabled) {
+    // Legacy settings saved before the URL prefill may have an empty syncUrl.
+    if (!settings.syncUrl) settings.syncUrl = 'https://abbass-workspace-sync.techmindset-leb.workers.dev';
+    if (settings.syncUrl) {
+      settings.syncEnabled = true;
+      syncSettings();
+      saveSettings(); // persist, but keep syncConfigured unset so auto-enable keeps working
+      return true;
+    }
+  }
+  return false;
 }
 
 function loadSyncMeta() {
@@ -1321,7 +1338,7 @@ function openSettings() {
           <span class="track"></span>
           <span>Cloudflare sync</span>
         </label>
-        <div class="form-hint">Store your tasks in the cloud so every device stays in sync. Enter the same PIN on each device to link them.</div>
+        <div class="form-hint">Sync turns on automatically when you unlock — enter the same PIN on each device to link them. Turning this off keeps this device local-only.</div>
       </div>
       <div class="form-g">
         <label class="form-l"><i class="fa-solid fa-link"></i> Worker URL</label>
@@ -1380,8 +1397,13 @@ function saveSettingsModal() {
   const syncInput = document.getElementById('editSync');
   const syncUrlInput = document.getElementById('editSyncUrl');
   if (syncInput) {
+    const newUrl = (syncUrlInput ? syncUrlInput.value : '').trim();
+    // Only treat it as an explicit choice if the toggle or URL actually changed
+    if (syncInput.checked !== settings.syncEnabled || newUrl !== (settings.syncUrl || '').trim()) {
+      settings.syncConfigured = true; // user made an explicit choice — stop auto-enabling
+    }
     settings.syncEnabled = syncInput.checked;
-    settings.syncUrl = (syncUrlInput ? syncUrlInput.value : '').trim();
+    settings.syncUrl = newUrl;
     const wasOn = SYNC.enabled;
     syncSettings();
     SYNC.keyPromise = null; // PIN may have changed — recompute next time
@@ -2352,6 +2374,7 @@ function checkAppLock() {
   const unlocked = sessionStorage.getItem('abbass-unlocked');
   if (unlocked === 'true') {
     document.getElementById('lockScreen').classList.add('hidden');
+    autoEnableSync();
     initApp(true);
   } else {
     initApp(false); // Initialize app in background (no toast yet)
@@ -2380,7 +2403,9 @@ function pinSubmit() {
     sessionStorage.setItem('abbass-unlocked', 'true');
     document.getElementById('lockScreen').classList.add('hidden');
     pinEntry = '';
-    toast('🚀 Welcome back, Abbass!', 'ok');
+    const justOn = autoEnableSync();
+    toast(justOn ? '🚀 Welcome back, Abbass! Syncing your tasks…' : '🚀 Welcome back, Abbass!', 'ok');
+    if (SYNC.enabled) syncPull();
   } else {
     document.getElementById('lockError').classList.add('show');
     document.querySelectorAll('.lock-dot').forEach(d => d.classList.add('wrong'));
