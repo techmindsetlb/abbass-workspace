@@ -27,7 +27,7 @@ Designed to match [abbassmokashar.github.io/website](https://abbassmokashar.gith
 - **🔒 PIN Lock** — Keep your workspace private (default PIN: `2002`, changeable anytime in Customize settings)
 - **🎨 Themes** — Midnight (default), Terminal, Deep Ocean, Light Slate
 - **💾 Auto-Save** — Everything persists in localStorage
-- **☁️ Cloud Sync** — Tasks & attachments sync across all your devices via Cloudflare Workers (D1 + R2)
+- **☁️ Cloud Sync** — Tasks & attachments sync across all your devices via Cloudflare Workers (D1 + KV)
 - **⌨️ Shortcuts** — `Ctrl+K` new task · `Ctrl+Shift+N` new board · `Esc` close modal
 - **📱 Fully Responsive** — Phone, tablet & desktop
 
@@ -46,7 +46,7 @@ Designed to match [abbassmokashar.github.io/website](https://abbassmokashar.gith
 - Pure HTML, CSS & JavaScript — no frameworks
 - localStorage + IndexedDB for local persistence & cache
 - **Cloudflare Workers + D1** for cloud state sync (optional)
-- **Cloudflare R2** for synced file attachments (optional)
+- **Cloudflare Workers KV** for synced file attachments (optional — no payment method needed)
 - Google Fonts: Syne + Space Grotesk
 - Font Awesome Icons
 
@@ -66,14 +66,16 @@ npx wrangler deploy
 ```
 
 > ✅ **Status (Aug 2026):** deployed at
-> `https://abbass-workspace-sync.techmindset-leb.workers.dev` with D1 sync live.
-> The R2 binding is currently commented out in `wrangler.toml` because R2 isn't
-> activated on the account yet. To enable attachment sync: enable R2 in the
-> Cloudflare dashboard (R2 → Enable), then `npx wrangler r2 bucket create abbass-workspace-files`,
-> uncomment the `[[r2_buckets]]` block, and redeploy.
+> `https://abbass-workspace-sync.techmindset-leb.workers.dev` with **D1 state sync**
+> and **Workers KV attachment sync** both live. KV was chosen over R2 so no
+> payment method is needed on the Cloudflare account.
 
 Then, in the app: **Customize → Sync Across Devices → on** — the Worker URL
 (`https://abbass-workspace-sync.techmindset-leb.workers.dev`) is already prefilled. Repeat on each device with the same PIN.
+
+> 💡 **KV consistency note:** Workers KV is eventually consistent — a file you
+> attach on one device can take up to ~60 seconds to appear on another. That's
+> the trade-off for zero-cost storage; state/tasks sync instantly via D1.
 
 **Security note:** the sync key is derived from your 4-digit PIN — anyone who knows your PIN could read your synced data. It's a convenient personal setup, not strong security. For stricter protection, put Cloudflare Access in front of the worker or switch to a random token.
 
@@ -83,7 +85,7 @@ Then, in the app: **Customize → Sync Across Devices → on** — the Worker UR
 |----------|---------|
 | `GET /api/state?key=` | Fetch your workspace JSON |
 | `PUT /api/state` | Push workspace (last-write-wins) |
-| `PUT /api/files?key=&id=` | Upload an attachment (R2) |
+| `PUT /api/files?key=&id=` | Upload an attachment (KV) |
 | `GET /api/files?key=&id=` | Download an attachment |
 | `DELETE /api/files?key=&id=` | Delete an attachment |
 

@@ -8,6 +8,8 @@
  *   GET  /api/files?key=<hash>&id=<id>  -> raw file bytes
  *   DELETE /api/files?key=<hash>&id=<id>
  *
+ * Files are stored in Workers KV (not R2) so no payment method is required.
+ *
  * Security note: `key` is a SHA-256 hash of the user's PIN. It acts as the
  * namespace + auth for a single-user app. Keep the PIN private.
  */
@@ -82,34 +84,41 @@ export default {
         }
       }
 
-      // ---------- FILES (R2) ----------
+      // ---------- FILES (Workers KV) ----------
+      // KV stores the raw bytes; the content type rides along in metadata.
       if (path === '/api/files') {
         const key = url.searchParams.get('key');
         const id = url.searchParams.get('id');
         if (!validKey(key) || !id || !/^[A-Za-z0-9_-]{1,80}$/.test(id)) return json({ error: 'invalid key or id' }, 400);
-        const r2Key = `${key}/${id}`;
+        const kvKey = `${key}/${id}`;
 
         if (request.method === 'PUT') {
           const type = request.headers.get('Content-Type') || 'application/octet-stream';
-          await env.BUCKET.put(r2Key, request.body, {
-            httpMetadata: { contentType: type },
-          });
-          return json({ ok: true });
+          // Buffer the body first — passing request.body (a stream) straight into
+          // KV.put can silently store nothing in some runtimes.
+          const buf = await request.arrayBuffer();
+          await env.FILES.put(kvKey, buf, { metadata: { type } });
+          return json({ ok: true, bytes: buf.byteLength });
         }
 
         if (request.method === 'GET') {
-          const obj = await env.BUCKET.get(r2Key);
-          if (!obj) return json({ error: 'not found' }, 404);
-          return new Response(obj.body, {
+          // getWithMetadata returns { value, metadata } (get with a type option
+          // returns the raw value only, losing the stored content type).
+          const obj = await env.FILES.getWithMetadata(kvKey, { type: 'arrayBuffer' });
+          // Some runtimes return { value: null } for missing keys rather than null.
+          if (obj === null || obj.value === null || obj.value === undefined) {
+            return json({ error: 'not found' }, 404);
+          }
+          return new Response(obj.value, {
             headers: {
-              'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream',
+              'Content-Type': obj.metadata?.type || 'application/octet-stream',
               ...CORS,
             },
           });
         }
 
         if (request.method === 'DELETE') {
-          await env.BUCKET.delete(r2Key);
+          await env.FILES.delete(kvKey);
           return json({ ok: true });
         }
       }

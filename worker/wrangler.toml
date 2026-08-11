@@ -10,11 +10,9 @@ binding = "DB"
 database_name = "abbass-workspace"
 database_id = "788dfbbc-3c2e-49ba-9212-3ef397f32f1b"
 
-# --- R2 bucket (file attachments) ---
-# TEMPORARILY DISABLED: R2 is not activated on this account yet (API error 10042).
-# 1) Enable R2: https://dash.cloudflare.com -> your account -> R2 -> "Enable"
-# 2) npx wrangler r2 bucket create abbass-workspace-files
-# 3) Uncomment the block below and redeploy to enable attachment sync.
-# [[r2_buckets]]
-# binding = "BUCKET"
-# bucket_name = "abbass-workspace-files"
+# --- KV namespace (file attachments) ---
+# Files are stored in Workers KV instead of R2 so no payment method is needed.
+# Note: KV is eventually consistent (~60s) — fine for personal use.
+[[kv_namespaces]]
+binding = "FILES"
+id = "5b6c4882f0f94b32b7270572eab36f98"
