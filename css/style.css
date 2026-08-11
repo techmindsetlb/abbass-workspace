@@ -1752,7 +1752,7 @@ body::before {
   .sidebar-title-text { display: none; }
   .sidebar-title span { font-size: 18px; margin: 0; }
   .sidebar-sub, .sidebar-sync, .sidebar-label-text, .board-item-text, .board-item-count, .add-board-btn span,
-  .sidebar-nav-item span { display: none; }
+  .sidebar-nav-item span:not(.nav-badge) { display: none; }
   .sidebar-label { justify-content: center; padding: 12px 6px 6px; }
   .sidebar-nav-item { justify-content: center; padding: 9px; }
   .sidebar-nav-item i { margin: 0; }
@@ -1789,6 +1789,118 @@ body::before {
   .calendar-day.today .day-number { width: 24px; height: 24px; font-size: 11px; }
   .focus-canvas-wrap { width: 200px; height: 200px; }
   .focus-time { font-size: 28px; }
+}
+
+/* ===== LICENSES VIEW ===== */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #ff8a80, #ff5252);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lic-icon {
+  background: linear-gradient(120deg, #25c19b33, #8ef5d433) !important;
+  color: var(--accent);
+}
+
+.lic-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 14px 20px 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: linear-gradient(120deg, rgba(255,138,128,0.12), rgba(255,82,82,0.08));
+  border: 1px solid rgba(255,138,128,0.35);
+  color: var(--text);
+  font-size: 13px;
+}
+.lic-banner i { color: #ff8a80; font-size: 16px; margin-top: 2px; }
+.lic-banner-t { display: flex; flex-direction: column; gap: 2px; }
+.lic-banner-t span { color: var(--text-faint); }
+
+.lic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px 28px;
+  overflow-y: auto;
+}
+
+.lic-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: border-color .2s, transform .2s;
+}
+.lic-row:hover { border-color: var(--accent); transform: translateY(-1px); }
+
+.lic-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lic-client { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lic-prod {
+  font-weight: 500;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent)18;
+  color: var(--accent);
+}
+.lic-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.lic-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.lic-chip:hover { border-color: var(--accent); background: var(--accent)12; }
+.lic-chip code { font-family: 'Space Grotesk', monospace; }
+.lic-chip i { color: var(--text-faint); font-size: 10px; }
+.lic-chip-hw code { color: var(--accent-2); }
+.lic-notes { font-size: 12px; color: var(--text-faint); }
+
+.lic-side { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.lic-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.st-active { background: rgba(105,240,174,0.15); color: #69F0AE; }
+.st-expiring { background: rgba(255,209,102,0.15); color: #FFD166; }
+.st-expired { background: rgba(255,138,128,0.15); color: #FF8A80; }
+.st-life { background: var(--surface-2); color: var(--text-faint); }
+.lic-actions { display: flex; gap: 6px; }
+
+.lic-date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+@media (max-width: 768px) {
+  .lic-row { flex-direction: column; align-items: flex-start; }
+  .lic-side { width: 100%; justify-content: space-between; }
+  .lic-date-row { grid-template-columns: 1fr; }
+  .sidebar-nav-item .nav-badge { margin-left: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

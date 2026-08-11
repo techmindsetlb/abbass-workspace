@@ -20,6 +20,7 @@ Designed to match [abbassmokashar.github.io/website](https://abbassmokashar.gith
 - **🏷️ Smart Tags** — Dev, Client, Design, Content, Meeting, Urgent, Idea, Personal
 - **🔴 Priority Levels** — High / Medium / Low with color indicators
 - **📅 Calendar View** — See all due tasks on one calendar
+- **🔑 Licenses** — Track SaaS licenses per client: license key + hardware ID (click to copy), start/expiry dates, and a red badge + banner that warns when a license is **expired or expiring within 14 days** (no browser permission needed)
 - **🚀 Rocket Focus Timer** — A rocket fuels up as you focus, then launches with confetti
 - **📎 Attachments** — Files saved in IndexedDB (images auto-compressed)
 - **✅ Checklists** — Subtasks with progress on each card

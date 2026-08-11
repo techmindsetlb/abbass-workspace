@@ -48,6 +48,13 @@ const DATA = {
         { id: 'c22', title: 'Call family', desc: 'Weekly catch-up', prio: 'low', tags: ['personal'], done: false, due: null },
         { id: 'c23', title: 'Grocery run', desc: 'Stock up for the week', prio: 'low', tags: ['personal'], done: false, due: null }
       ] }
+  ],
+  // SaaS license tracking: one entry per client+product license.
+  // hwId = the hardware ID the client sends once, used to activate the license.
+  licenses: [
+    { id: 'lc1', client: 'Cafe Beirut', product: 'Cafe/POS', key: 'CB-POS-2026-8F3K', hwId: 'HW-A1B2C3D4', start: '2026-01-15', expires: '2026-08-20', notes: 'Annual plan — renewal due' },
+    { id: 'lc2', client: 'Dr. Haddad Clinic', product: 'Clinic Manager', key: 'CM-DH-2026-9Q2X', hwId: 'HW-E5F6G7H8', start: '2026-07-01', expires: '2026-09-01', notes: 'Monthly billing' },
+    { id: 'lc3', client: 'Online Store Co.', product: 'POS + Delivery', key: 'OS-POS-2026-7V1T', hwId: 'HW-I9J0K1L2', start: '2026-03-01', expires: '2027-03-01', notes: '' }
   ]
 };
 
@@ -357,7 +364,7 @@ const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function loadState() {
   try {
     const s = localStorage.getItem(STORAGE_KEY);
-    if (s) { const p = JSON.parse(s); if (p?.boards?.length) return p; }
+    if (s) { const p = JSON.parse(s); if (p?.boards?.length) { if (!Array.isArray(p.licenses)) p.licenses = []; return p; } }
   } catch(e) {}
   return JSON.parse(JSON.stringify(DATA));
 }
@@ -510,12 +517,15 @@ async function syncPull() {
     }
     // Adopt the server state (it's newer)
     state = j.data;
+    if (!Array.isArray(state.licenses)) state.licenses = [];
     save();
     localStorage.setItem(SYNC_META_KEY, JSON.stringify({ updatedAt: j.updatedAt, key: key.slice(0, 8) }));
     renderSidebar();
     if (currentView === 'tasks') renderMain();
     else if (currentView === 'calendar') renderCalendar();
     else if (currentView === 'focus') renderFocus();
+    else if (currentView === 'licenses') renderLicenses();
+    updateLicenseBadge();
     setSyncState('synced', j.updatedAt);
     const locked = !document.getElementById('lockScreen').classList.contains('hidden');
     if (!locked) toast('☁️ Synced from another device', 'ok');
@@ -624,6 +634,7 @@ function switchView(view) {
   if (view === 'tasks') renderMain();
   else if (view === 'calendar') renderCalendar();
   else if (view === 'focus') renderFocus();
+  else if (view === 'licenses') renderLicenses();
 }
 
 // ===== RENDER SIDEBAR HEADER =====
@@ -1813,6 +1824,302 @@ function selectDate(dateStr) {
 }
 
 // ====================================================================
+// 🔑 LICENSES — SaaS license & hardware-ID tracking
+// ====================================================================
+
+const LICENSE_WARN_DAYS = 14; // flag a license as "expiring" this many days before expiry
+
+function licenseStatus(l) {
+  if (!l.expires) return { key: 'none', label: 'No expiry', cls: 'st-life' };
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const exp = new Date(l.expires + 'T00:00:00');
+  const days = Math.round((exp - now) / 86400000);
+  if (days < 0) return { key: 'expired', label: `Expired ${-days}d ago`, cls: 'st-expired', days };
+  if (days === 0) return { key: 'expiring', label: 'Expires today', cls: 'st-expiring', days };
+  if (days <= LICENSE_WARN_DAYS) return { key: 'expiring', label: `Expires in ${days}d`, cls: 'st-expiring', days };
+  return { key: 'active', label: `${days}d left`, cls: 'st-active', days };
+}
+
+function renderLicenses() {
+  if (currentView !== 'licenses') return;
+  const lic = state.licenses || [];
+
+  const stats = { total: lic.length, active: 0, expiring: 0, expired: 0, none: 0 };
+  lic.forEach(l => { stats[licenseStatus(l).key]++; });
+
+  const sorted = [...lic].sort((a, b) => {
+    const o = { expired: 0, expiring: 1, none: 2, active: 3 };
+    const d = (o[licenseStatus(a).key] ?? 4) - (o[licenseStatus(b).key] ?? 4);
+    if (d !== 0) return d;
+    return (a.expires || '9999').localeCompare(b.expires || '9999');
+  });
+
+  const banner = (stats.expired > 0 || stats.expiring > 0) ? `
+    <div class="lic-banner">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <div class="lic-banner-t">
+        <strong>${stats.expired > 0 ? stats.expired + ' license' + (stats.expired > 1 ? 's' : '') + ' expired' : ''}${stats.expired > 0 && stats.expiring > 0 ? ' · ' : ''}${stats.expiring > 0 ? stats.expiring + ' expiring within ' + LICENSE_WARN_DAYS + ' days' : ''}</strong>
+        <span>Renew before they lapse — see the list below.</span>
+      </div>
+    </div>
+  ` : '';
+
+  const rows = sorted.length ? sorted.map(l => {
+    const st = licenseStatus(l);
+    return `
+      <div class="lic-row">
+        <div class="lic-main">
+          <div class="lic-client">${esc(l.client)} <span class="lic-prod">${esc(l.product)}</span></div>
+          <div class="lic-meta">
+            <span class="lic-chip" title="License key (click to copy)" onclick="copyLicenseKey('${l.id}')"><i class="fa-solid fa-copy"></i> <code>${esc(l.key)}</code></span>
+            ${l.hwId ? `<span class="lic-chip lic-chip-hw" title="Hardware ID (click to copy)" onclick="copyHwId('${l.id}')"><i class="fa-solid fa-microchip"></i> <code>${esc(l.hwId)}</code></span>` : ''}
+            ${l.start ? `<span class="lic-chip"><i class="fa-regular fa-calendar"></i> ${esc(l.start)} → ${l.expires ? esc(l.expires) : '—'}</span>` : ''}
+          </div>
+          ${l.notes ? `<div class="lic-notes">${esc(l.notes)}</div>` : ''}
+        </div>
+        <div class="lic-side">
+          <span class="lic-status ${st.cls}">${st.label}</span>
+          <div class="lic-actions">
+            <button class="btn btn-ghost btn-sm" onclick="editLicense('${l.id}')" title="Edit"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn btn-ghost btn-sm" onclick="confirmLicenseDelete('${l.id}')" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('') : `<div class="empty-state"><div class="empty-state-icon">🔑</div><div class="empty-state-text">No licenses yet — add your first one to start tracking renewals.</div></div>`;
+
+  document.getElementById('mainContent').innerHTML = `
+    <div class="main-header">
+      <div class="main-header-left">
+        <div class="main-board-icon lic-icon">🔑</div>
+        <div>
+          <div class="main-board-name">Licenses</div>
+          <div class="main-board-stats">${stats.total} licenses · ${stats.active} active · ${stats.expiring} expiring · ${stats.expired} expired</div>
+        </div>
+      </div>
+      <div class="main-header-actions">
+        <button class="btn btn-accent btn-sm" onclick="addLicense()"><i class="fa-solid fa-plus"></i> Add License</button>
+      </div>
+    </div>
+    ${banner}
+    <div class="lic-list">${rows}</div>
+  `;
+  updateLicenseBadge();
+}
+
+function addLicense() {
+  showModal(`
+    <div class="modal-h">
+      <div class="modal-h-title">🔑 New License</div>
+      <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-b">
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-user"></i> Client</label>
+        <input class="form-i" id="licClient" placeholder="Client name" list="licClientsList">
+        <datalist id="licClientsList">${(state.licenses||[]).map(l => `<option value="${esc(l.client)}">`).join('')}</datalist>
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-box"></i> Product / Software</label>
+        <input class="form-i" id="licProduct" placeholder="e.g. Cafe/POS, Clinic Manager">
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-key"></i> License Key</label>
+        <input class="form-i" id="licKey" placeholder="LIC-KEY-XXXX-XXXX">
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-microchip"></i> Hardware ID <span style="color:var(--text-faint);font-weight:400">(client sends this once to activate)</span></label>
+        <input class="form-i" id="licHw" placeholder="HW-XXXXXXXX">
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-regular fa-calendar"></i> Start — Expiry</label>
+        <div class="lic-date-row">
+          <input type="date" class="form-i" id="licStart">
+          <input type="date" class="form-i" id="licExpires">
+        </div>
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-regular fa-note-sticky"></i> Notes</label>
+        <input class="form-i" id="licNotes" placeholder="Plan, price, renewal notes…">
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="saveNewLicense()">💾 Add License</button>
+    </div>
+  `);
+}
+
+function saveNewLicense() {
+  const client = document.getElementById('licClient').value.trim();
+  if (!client) { toast('Client name is required!', 'err'); return; }
+  const key = document.getElementById('licKey').value.trim();
+  if (!key) { toast('License key is required!', 'err'); return; }
+  const l = {
+    id: uid(),
+    client,
+    product: document.getElementById('licProduct').value.trim(),
+    key,
+    hwId: document.getElementById('licHw').value.trim(),
+    start: document.getElementById('licStart').value || null,
+    expires: document.getElementById('licExpires').value || null,
+    notes: document.getElementById('licNotes').value.trim()
+  };
+  if (!Array.isArray(state.licenses)) state.licenses = [];
+  state.licenses.push(l);
+  save();
+  closeModal();
+  renderLicenses();
+  toast('🔑 License added!', 'ok');
+  checkLicenseAlerts(true);
+}
+
+function editLicense(id) {
+  const l = (state.licenses || []).find(x => x.id === id);
+  if (!l) return;
+  showModal(`
+    <div class="modal-h">
+      <div class="modal-h-title">🔑 Edit License</div>
+      <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-b">
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-user"></i> Client</label>
+        <input class="form-i" id="licClient" value="${esc(l.client)}">
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-box"></i> Product / Software</label>
+        <input class="form-i" id="licProduct" value="${esc(l.product || '')}">
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-key"></i> License Key</label>
+        <input class="form-i" id="licKey" value="${esc(l.key)}">
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-microchip"></i> Hardware ID</label>
+        <input class="form-i" id="licHw" value="${esc(l.hwId || '')}">
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-regular fa-calendar"></i> Start — Expiry</label>
+        <div class="lic-date-row">
+          <input type="date" class="form-i" id="licStart" value="${esc(l.start || '')}">
+          <input type="date" class="form-i" id="licExpires" value="${esc(l.expires || '')}">
+        </div>
+      </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-regular fa-note-sticky"></i> Notes</label>
+        <input class="form-i" id="licNotes" value="${esc(l.notes || '')}">
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="saveEditLicense('${id}')">💾 Save</button>
+    </div>
+  `);
+}
+
+function saveEditLicense(id) {
+  const l = (state.licenses || []).find(x => x.id === id);
+  if (!l) return;
+  const client = document.getElementById('licClient').value.trim();
+  const key = document.getElementById('licKey').value.trim();
+  if (!client) { toast('Client name is required!', 'err'); return; }
+  if (!key) { toast('License key is required!', 'err'); return; }
+  l.client = client;
+  l.product = document.getElementById('licProduct').value.trim();
+  l.key = key;
+  l.hwId = document.getElementById('licHw').value.trim();
+  l.start = document.getElementById('licStart').value || null;
+  l.expires = document.getElementById('licExpires').value || null;
+  l.notes = document.getElementById('licNotes').value.trim();
+  save();
+  closeModal();
+  renderLicenses();
+  toast('💾 License updated!', 'ok');
+}
+
+function confirmLicenseDelete(id) {
+  const l = (state.licenses || []).find(x => x.id === id);
+  if (!l) return;
+  confirm('🔑', 'Delete license?', `"${esc(l.client)} — ${esc(l.product)}" will be removed.`, () => {
+    state.licenses = (state.licenses || []).filter(x => x.id !== id);
+    save();
+    renderLicenses();
+    toast('🗑️ License deleted', 'ok');
+  });
+}
+
+// Copy handlers resolve values from state by id — never interpolate user data
+// into inline JS (avoids broken attributes / XSS).
+function copyLicenseKey(id) {
+  const l = (state.licenses || []).find(x => x.id === id);
+  if (l) copyText(l.key, 'License key');
+}
+function copyHwId(id) {
+  const l = (state.licenses || []).find(x => x.id === id);
+  if (l && l.hwId) copyText(l.hwId, 'Hardware ID');
+}
+
+function copyText(text, label) {
+  const done = () => toast(`📋 ${label} copied!`, 'ok');
+  const fail = () => toast('❌ Copy failed — select & copy manually', 'err');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text) ? done() : fail());
+    return;
+  }
+  fallbackCopy(text) ? done() : fail();
+}
+function fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
+
+// Update the sidebar badge + banner; called on boot, unlock and after changes.
+function updateLicenseBadge() {
+  const badge = document.getElementById('licenseBadge');
+  if (!badge) return;
+  const lic = state.licenses || [];
+  const alerts = lic.filter(l => ['expired', 'expiring'].includes(licenseStatus(l).key)).length;
+  if (alerts > 0) {
+    badge.textContent = alerts;
+    badge.style.display = 'inline-flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// Toast a warning on unlock if any licenses are expiring or expired.
+// Only fires when the alert situation CHANGES vs. the last seen state, so
+// reloading the page doesn't spam the same toast.
+function checkLicenseAlerts(show = true) {
+  updateLicenseBadge();
+  if (!show) return;
+  const lic = state.licenses || [];
+  const expired = lic.filter(l => licenseStatus(l).key === 'expired').length;
+  const expiring = lic.filter(l => licenseStatus(l).key === 'expiring').length;
+  if (expired === 0 && expiring === 0) {
+    sessionStorage.removeItem('abbass-lic-alerts');
+    return;
+  }
+  const sig = `${expired}-${expiring}`;
+  if (sessionStorage.getItem('abbass-lic-alerts') === sig) return; // already shown
+  sessionStorage.setItem('abbass-lic-alerts', sig);
+  if (expired > 0 && expiring > 0) toast(`⚠️ ${expired} license(s) expired · ${expiring} expiring within ${LICENSE_WARN_DAYS}d — check Licenses`, 'err');
+  else if (expired > 0) toast(`⚠️ ${expired} license(s) expired — check Licenses`, 'err');
+  else if (expiring > 0) toast(`⏳ ${expiring} license(s) expiring within ${LICENSE_WARN_DAYS}d — check Licenses`, 'ok');
+}
+
+// ====================================================================
 // 🚀 FOCUS TIMER — ROCKET LAUNCH
 // ====================================================================
 
@@ -2405,6 +2712,7 @@ function pinSubmit() {
     pinEntry = '';
     const justOn = autoEnableSync();
     toast(justOn ? '🚀 Welcome back, Abbass! Syncing your tasks…' : '🚀 Welcome back, Abbass!', 'ok');
+    checkLicenseAlerts(true);
     if (SYNC.enabled) syncPull();
   } else {
     document.getElementById('lockError').classList.add('show');
@@ -2458,8 +2766,12 @@ function initApp(showToast = true) {
   applyTheme(settings.theme);
   syncSettings();
   renderSidebar();
+  updateLicenseBadge();
   switchView('tasks');
-  if (showToast) toast('🚀 Welcome back, Abbass!', 'ok');
+  if (showToast) {
+    toast('🚀 Welcome back, Abbass!', 'ok');
+    checkLicenseAlerts(true);
+  }
   if (SYNC.enabled) syncPull();
 }
 
