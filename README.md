@@ -61,13 +61,19 @@ cd worker
 npx wrangler login
 npx wrangler d1 create abbass-workspace          # copy the returned database_id
 # paste database_id into wrangler.toml
-npx wrangler r2 bucket create abbass-workspace-files
-npx wrangler d1 execute abbass-workspace --file schema.sql
+npx wrangler d1 execute abbass-workspace --remote --file schema.sql
 npx wrangler deploy
 ```
 
-Then, in the app: **Customize → Sync Across Devices → on** and paste the Worker URL
-(`https://abbass-workspace-sync.<your-subdomain>.workers.dev`). Repeat on each device with the same PIN.
+> ✅ **Status (Aug 2026):** deployed at
+> `https://abbass-workspace-sync.techmindset-leb.workers.dev` with D1 sync live.
+> The R2 binding is currently commented out in `wrangler.toml` because R2 isn't
+> activated on the account yet. To enable attachment sync: enable R2 in the
+> Cloudflare dashboard (R2 → Enable), then `npx wrangler r2 bucket create abbass-workspace-files`,
+> uncomment the `[[r2_buckets]]` block, and redeploy.
+
+Then, in the app: **Customize → Sync Across Devices → on** — the Worker URL
+(`https://abbass-workspace-sync.techmindset-leb.workers.dev`) is already prefilled. Repeat on each device with the same PIN.
 
 **Security note:** the sync key is derived from your 4-digit PIN — anyone who knows your PIN could read your synced data. It's a convenient personal setup, not strong security. For stricter protection, put Cloudflare Access in front of the worker or switch to a random token.
 

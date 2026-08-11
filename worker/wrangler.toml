@@ -8,10 +8,13 @@ compatibility_date = "2024-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "abbass-workspace"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "788dfbbc-3c2e-49ba-9212-3ef397f32f1b"
 
 # --- R2 bucket (file attachments) ---
-# 1) npx wrangler r2 bucket create abbass-workspace-files
-[[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "abbass-workspace-files"
+# TEMPORARILY DISABLED: R2 is not activated on this account yet (API error 10042).
+# 1) Enable R2: https://dash.cloudflare.com -> your account -> R2 -> "Enable"
+# 2) npx wrangler r2 bucket create abbass-workspace-files
+# 3) Uncomment the block below and redeploy to enable attachment sync.
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "abbass-workspace-files"

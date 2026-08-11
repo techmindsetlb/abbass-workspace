@@ -305,7 +305,7 @@ function loadSettings() {
     const s = localStorage.getItem(SETTINGS_KEY);
     if (s) { const p = JSON.parse(s); if (p.theme) return p; }
   } catch(e) {}
-  return { theme: 'midnight', logoStyle: 'emoji-name', quote: 'ship it — one task at a time 🚀', pin: '2002', syncEnabled: false, syncUrl: '' };
+  return { theme: 'midnight', logoStyle: 'emoji-name', quote: 'ship it — one task at a time 🚀', pin: '2002', syncEnabled: false, syncUrl: 'https://abbass-workspace-sync.techmindset-leb.workers.dev' };
 }
 
 function saveSettings() {
@@ -1325,7 +1325,7 @@ function openSettings() {
       </div>
       <div class="form-g">
         <label class="form-l"><i class="fa-solid fa-link"></i> Worker URL</label>
-        <input class="form-i" id="editSyncUrl" value="${esc(settings.syncUrl || '')}" placeholder="https://abbass-workspace-sync.&lt;subdomain&gt;.workers.dev">
+        <input class="form-i" id="editSyncUrl" value="${esc(settings.syncUrl || '')}" placeholder="https://abbass-workspace-sync.techmindset-leb.workers.dev">
       </div>
       <div class="form-g">
         <div class="form-hint" style="margin-bottom:6px">${syncStatusText()}</div>
