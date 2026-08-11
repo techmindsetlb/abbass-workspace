@@ -431,7 +431,7 @@ function renderSidebar() {
   renderSidebarHeader();
   const list = document.getElementById('boardList');
   list.innerHTML = state.boards.map(b => `
-    <button class="board-item${b.id === activeBoardId ? ' active' : ''}" onclick="switchBoard('${b.id}')">
+    <button class="board-item${b.id === activeBoardId ? ' active' : ''}" data-board-id="${b.id}" onclick="switchBoard('${b.id}')">
       <span class="board-item-icon" style="background:${COLOR_HEX[b.color]}22">${b.icon}</span>
       <span class="board-item-text">${esc(b.title)}</span>
       <span class="board-item-count">${b.cards.length}</span>
@@ -567,6 +567,7 @@ function cardHTML(c, boardId, idx) {
 
 // ===== DRAG & DROP =====
 let dragSrcId = null;
+let dragSrcBoardId = null;
 
 function bindDragDrop() {
   const grid = document.getElementById('cardsGrid');
@@ -581,10 +582,19 @@ function bindDragDrop() {
     card.addEventListener('dragleave', dragLeave);
     card.addEventListener('drop', dragDrop);
   });
+
+  // Sidebar boards are drop targets for moving cards between boards
+  document.querySelectorAll('.board-item').forEach(item => {
+    item.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    item.addEventListener('dragenter', boardDragEnter);
+    item.addEventListener('dragleave', boardDragLeave);
+    item.addEventListener('drop', boardDrop);
+  });
 }
 
 function dragStart(e) {
   dragSrcId = this.dataset.id;
+  dragSrcBoardId = activeBoardId;
   this.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', this.dataset.id);
@@ -626,8 +636,46 @@ function dragDrop(e) {
 
 function dragEnd() {
   this.classList.remove('dragging');
-  document.querySelectorAll('.card.drag-over').forEach(el => el.classList.remove('drag-over'));
+  document.querySelectorAll('.card.drag-over, .board-item.drag-target').forEach(el => el.classList.remove('drag-over', 'drag-target'));
   dragSrcId = null;
+  dragSrcBoardId = null;
+}
+
+// ===== MOVE CARD BETWEEN BOARDS (drop on sidebar board) =====
+function boardDragEnter(e) {
+  e.preventDefault();
+  const targetId = this.dataset.boardId;
+  if (targetId && targetId !== dragSrcBoardId) this.classList.add('drag-target');
+}
+
+function boardDragLeave() {
+  this.classList.remove('drag-target');
+}
+
+function boardDrop(e) {
+  e.stopPropagation();
+  e.preventDefault();
+  this.classList.remove('drag-target');
+  const targetId = this.dataset.boardId;
+  if (targetId) moveCardToBoard(dragSrcId, dragSrcBoardId, targetId);
+}
+
+function moveCardToBoard(cardId, srcBoardId, targetBoardId) {
+  if (!cardId || !srcBoardId || !targetBoardId || srcBoardId === targetBoardId) return false;
+  const srcBoard = state.boards.find(b => b.id === srcBoardId);
+  const dstBoard = state.boards.find(b => b.id === targetBoardId);
+  if (!srcBoard || !dstBoard) return false;
+  const idx = srcBoard.cards.findIndex(c => c.id === cardId);
+  if (idx === -1) return false;
+  const [moved] = srcBoard.cards.splice(idx, 1);
+  dstBoard.cards.unshift(moved);
+  save();
+  activeBoardId = targetBoardId;
+  searchQuery = '';
+  renderSidebar();
+  renderMain();
+  toast(`🚀 Moved to ${dstBoard.title}!`, 'ok');
+  return true;
 }
 
 // ===== TOGGLE DONE =====

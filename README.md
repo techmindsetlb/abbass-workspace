@@ -16,6 +16,7 @@ Designed to match [abbassmokashar.github.io/website](https://abbassmokashar.gith
 ## ✨ Features
 
 - **📝 Kanban Boards** — Separate board per project/client
+- **↔️ Cross-Board Drag & Drop** — Drag a task and drop it on another board in the sidebar to move it
 - **🏷️ Smart Tags** — Dev, Client, Design, Content, Meeting, Urgent, Idea, Personal
 - **🔴 Priority Levels** — High / Medium / Low with color indicators
 - **📅 Calendar View** — See all due tasks on one calendar
