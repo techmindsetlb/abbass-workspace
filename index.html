@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Abbass Workspace · Web Developer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230A0A10'/%3E%3Cpath d='M24 34 L46 50 L24 66' stroke='%2325C19B' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M54 66 H78' stroke='%238EF5D4' stroke-width='9' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header" id="sidebarHeader">
+      <!-- Rendered by JS -->
+    </div>
+
+    <!-- NAVIGATION -->
+    <div class="sidebar-nav">
+      <button class="sidebar-nav-item active" data-view="tasks" onclick="switchView('tasks')">
+        <i class="fa-solid fa-list-check"></i>
+        <span>Tasks</span>
+      </button>
+      <button class="sidebar-nav-item" data-view="calendar" onclick="switchView('calendar')">
+        <i class="fa-solid fa-calendar-days"></i>
+        <span>Calendar</span>
+      </button>
+      <button class="sidebar-nav-item" data-view="focus" onclick="switchView('focus')">
+        <i class="fa-solid fa-rocket"></i>
+        <span>Focus</span>
+      </button>
+      <button class="sidebar-nav-item" onclick="openPortfolio()">
+        <i class="fa-solid fa-globe"></i>
+        <span>Portfolio</span>
+      </button>
+    </div>
+
+    <!-- BOARD SECTION (only shown in tasks view) -->
+    <div class="sidebar-boards" id="sidebarBoards">
+      <div class="sidebar-label">
+        <span class="sidebar-label-text">Boards</span>
+        <span class="sidebar-label-actions">
+          <button class="sidebar-settings-btn" onclick="openSettings()" title="Customize"><i class="fa-solid fa-palette"></i></button>
+          <button class="sidebar-settings-btn" onclick="lockApp()" title="Lock App"><i class="fa-solid fa-lock"></i></button>
+        </span>
+      </div>
+      <div class="boards-list" id="boardList"></div>
+      <button class="add-board-btn" onclick="addBoard()">
+        <i class="fa-solid fa-plus"></i>
+        <span>New Board</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" id="mainContent">
+    <!-- Rendered by JS -->
+  </div>
+</div>
+
+<!-- LOCK SCREEN -->
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-container">
+    <div class="lock-emoji">🚀</div>
+    <div class="lock-title">Abbass Workspace</div>
+    <div class="lock-sub">Enter PIN to unlock</div>
+    <div class="lock-pin-wrap">
+      <div class="lock-dots" id="lockDots">
+        <span class="lock-dot"></span>
+        <span class="lock-dot"></span>
+        <span class="lock-dot"></span>
+        <span class="lock-dot"></span>
+      </div>
+      <div class="lock-error" id="lockError">Incorrect PIN</div>
+    </div>
+    <div class="lock-keypad" id="lockKeypad">
+      <button class="lock-key" onclick="pinKey('1')">1</button>
+      <button class="lock-key" onclick="pinKey('2')">2</button>
+      <button class="lock-key" onclick="pinKey('3')">3</button>
+      <button class="lock-key" onclick="pinKey('4')">4</button>
+      <button class="lock-key" onclick="pinKey('5')">5</button>
+      <button class="lock-key" onclick="pinKey('6')">6</button>
+      <button class="lock-key" onclick="pinKey('7')">7</button>
+      <button class="lock-key" onclick="pinKey('8')">8</button>
+      <button class="lock-key" onclick="pinKey('9')">9</button>
+      <button class="lock-key" onclick="pinClear()">⌫</button>
+      <button class="lock-key" onclick="pinKey('0')">0</button>
+      <button class="lock-key" onclick="pinSubmit()">✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-c" id="toastC"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
