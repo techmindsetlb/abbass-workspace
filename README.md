@@ -24,7 +24,7 @@ Designed to match [abbassmokashar.github.io/website](https://abbassmokashar.gith
 - **📎 Attachments** — Files saved in IndexedDB (images auto-compressed)
 - **✅ Checklists** — Subtasks with progress on each card
 - **📝 Rich Notes** — Bold, italic, lists, headings per task
-- **🔒 PIN Lock** — Keep your workspace private (default PIN: `2002`)
+- **🔒 PIN Lock** — Keep your workspace private (default PIN: `2002`, changeable anytime in Customize settings)
 - **🎨 Themes** — Midnight (default), Terminal, Deep Ocean, Light Slate
 - **💾 Auto-Save** — Everything persists in localStorage
 - **⌨️ Shortcuts** — `Ctrl+K` new task · `Ctrl+Shift+N` new board · `Esc` close modal

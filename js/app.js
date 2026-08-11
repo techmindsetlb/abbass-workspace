@@ -305,7 +305,7 @@ function loadSettings() {
     const s = localStorage.getItem(SETTINGS_KEY);
     if (s) { const p = JSON.parse(s); if (p.theme) return p; }
   } catch(e) {}
-  return { theme: 'midnight', logoStyle: 'emoji-name', quote: 'ship it — one task at a time 🚀' };
+  return { theme: 'midnight', logoStyle: 'emoji-name', quote: 'ship it — one task at a time 🚀', pin: '2002' };
 }
 
 function saveSettings() {
@@ -1094,6 +1094,10 @@ function openSettings() {
         <label class="form-l"><i class="fa-regular fa-quote-right"></i> Personal Quote</label>
         <input class="form-i" id="editQuote" value="${esc(settings.quote)}" placeholder="A line that keeps you shipping...">
       </div>
+      <div class="form-g">
+        <label class="form-l"><i class="fa-solid fa-lock"></i> PIN Code <span style="color:var(--text-faint);font-weight:400">(4 digits)</span></label>
+        <input class="form-i" id="editPin" value="${esc(getPin())}" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="4-digit PIN">
+      </div>
     </div>
     <div class="modal-f">
       <button class="btn btn-ghost" onclick="closeModal()">Close</button>
@@ -1116,12 +1120,22 @@ function selLogo(el, style) {
 }
 
 function saveSettingsModal() {
+  let pinMsg = '';
+  const pinInput = document.getElementById('editPin');
+  if (pinInput) {
+    const pin = pinInput.value.trim();
+    if (/^\d{4}$/.test(pin)) {
+      if (pin !== getPin()) { settings.pin = pin; pinMsg = ' 🔒 PIN updated'; }
+    } else {
+      toast('PIN must be exactly 4 digits — current PIN kept', 'err');
+    }
+  }
   const q = document.getElementById('editQuote').value.trim();
   if (q) settings.quote = q;
   saveSettings();
   renderSidebarHeader();
   closeModal();
-  toast('💾 Settings saved!', 'ok');
+  toast('💾 Settings saved!' + pinMsg, 'ok');
 }
 
 // ===== BOARD CRUD =====
@@ -2071,7 +2085,7 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
 });
 
 // ===== PIN LOCK =====
-const PIN_CODE = '2002';
+function getPin() { return (settings && settings.pin) || '2002'; }
 let pinEntry = '';
 
 function checkAppLock() {
@@ -2101,7 +2115,7 @@ function pinClear() {
 }
 
 function pinSubmit() {
-  if (pinEntry === PIN_CODE) {
+  if (pinEntry === getPin()) {
     document.getElementById('lockError').classList.remove('show');
     sessionStorage.setItem('abbass-unlocked', 'true');
     document.getElementById('lockScreen').classList.add('hidden');
